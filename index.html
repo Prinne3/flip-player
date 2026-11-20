@@ -8,6 +8,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="color-scheme" content="dark">
 <meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
 :root{--bg:#0b0b0f;--card:#17171f;--fg:#f2f2f7;--mut:#8e8e9a;--acc:#ff3b5c;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box;margin:0}
@@ -32,6 +35,19 @@ button:active{background:#262633}
 .item .t{flex:1;min-width:0;text-align:left;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 12px}
 .item .x{min-width:44px;color:var(--mut);font-size:16px}
 .empty{color:var(--mut);font-size:14px;padding:8px}
+/* Full-screen player mode */
+.shield,.fsbar{display:none}
+body.fs{padding:0}
+body.fs>.row,body.fs>.ctrl,body.fs>.tabs,body.fs>.list{display:none}
+body.fs .stage{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;aspect-ratio:auto;border-radius:0;z-index:5}
+body.fs.fill .stage iframe{inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:max(100vw,177.78vh);height:max(100vh,56.25vw);
+  width:max(100vw,calc(100dvh*16/9));height:max(100dvh,calc(100vw*9/16))}
+body.fs.fill .shield{display:block;position:fixed;inset:0;z-index:6}
+body.fs .fsbar{display:flex;gap:6px;position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));z-index:7;transition:opacity .25s}
+.fsbar button{flex:1;background:rgba(23,23,31,.85);font-size:18px}
+.fsbar .md{font-size:14px;font-weight:600}
+.fsbar.hide{opacity:0;pointer-events:none}
 </style>
 </head>
 <body>
@@ -45,6 +61,15 @@ button:active{background:#262633}
   <button id="pp" aria-label="Play or pause">⏯</button>
   <button id="next" aria-label="Next">⏭</button>
   <button id="fav" class="fav" aria-label="Favorite">♥</button>
+  <button id="fs" aria-label="Full screen">⛶</button>
+</div>
+<div class="shield" id="shield"></div>
+<div class="fsbar" id="fsbar">
+  <button id="fprev" aria-label="Previous">⏮</button>
+  <button id="fpp" aria-label="Play or pause">⏯</button>
+  <button id="fnext" aria-label="Next">⏭</button>
+  <button id="mode" class="md" aria-label="Fit or fill">Fill</button>
+  <button id="fexit" aria-label="Exit full screen">✕</button>
 </div>
 <div class="tabs">
   <button id="tR" class="sel">Recent</button>
@@ -81,7 +106,7 @@ button:active{background:#262633}
   }
   function key(p){return (p.v||'')+'|'+(p.l||'')}
   function src(p){
-    var q='?enablejsapi=1&playsinline=1&rel=0&autoplay=1';
+    var q='?enablejsapi=1&playsinline=1&rel=0&autoplay=1&origin='+encodeURIComponent(location.origin);
     if(p.l&&!p.v) return 'https://www.youtube.com/embed/videoseries'+q+'&list='+encodeURIComponent(p.l);
     return 'https://www.youtube.com/embed/'+p.v+q+(p.l?'&list='+encodeURIComponent(p.l):'');
   }
@@ -100,6 +125,9 @@ button:active{background:#262633}
     f.allowFullscreen=true;
     f.title='YouTube player';
     f.referrerPolicy='strict-origin-when-cross-origin';
+    f.onload=function(){
+      try{f.contentWindow.postMessage(JSON.stringify({event:'listening',id:1,channel:'widget'}),'*')}catch(e){}
+    };
     st.appendChild(f);
     var note=document.createElement('div');
     note.className='msg'; note.style.zIndex='-1';
@@ -158,9 +186,66 @@ button:active{background:#262633}
   }
   $('go').onclick=submit;
   $('url').addEventListener('keydown',function(e){if(e.key==='Enter')submit()});
-  $('pp').onclick=function(){playing=!playing;cmd(playing?'playVideo':'pauseVideo')};
+  function togglePlay(){playing=!playing;cmd(playing?'playVideo':'pauseVideo');showBar()}
+  $('pp').onclick=togglePlay;
   $('next').onclick=function(){cmd('nextVideo')};
   $('prev').onclick=function(){cmd('previousVideo')};
+
+  // Keep play/pause in sync with the real player state
+  window.addEventListener('message',function(e){
+    if(!/youtube(-nocookie)?\.com$/.test((e.origin||'').replace(/:\d+$/,''))) return;
+    var d; try{d=typeof e.data==='string'?JSON.parse(e.data):e.data}catch(x){return}
+    if(!d) return;
+    var s=null;
+    if(d.event==='onStateChange') s=d.info;
+    else if(d.event==='infoDelivery'&&d.info&&typeof d.info.playerState==='number') s=d.info.playerState;
+    if(s===null) return;
+    var was=playing; playing=(s===1||s===3);
+    if(was!==playing) showBar();
+  });
+
+  // Full-screen mode with Fit / Fill
+  var fill=localStorage.getItem('fp_fill')!=='0', realFs=false, hideT=null;
+  function applyMode(){
+    document.body.classList.toggle('fill',fill);
+    $('mode').textContent=fill?'Fill':'Fit';
+  }
+  function showBar(){
+    var b=$('fsbar'); b.classList.remove('hide'); clearTimeout(hideT);
+    if(fill&&playing&&document.body.classList.contains('fs')) hideT=setTimeout(function(){b.classList.add('hide')},3000);
+  }
+  function enterFs(){
+    document.body.classList.add('fs'); applyMode(); showBar();
+    var el=document.documentElement;
+    if(el.requestFullscreen&&!document.fullscreenElement){
+      try{var r=el.requestFullscreen({navigationUI:'hide'});if(r&&r.catch)r.catch(function(){})}catch(e){}
+    }
+  }
+  function exitFs(){
+    document.body.classList.remove('fs'); clearTimeout(hideT);
+    if(document.fullscreenElement&&document.exitFullscreen){try{document.exitFullscreen()}catch(e){}}
+  }
+  document.addEventListener('fullscreenchange',function(){
+    if(document.fullscreenElement===document.documentElement) realFs=true;
+    else if(!document.fullscreenElement&&realFs){realFs=false;exitFs()}
+  });
+  $('fs').onclick=enterFs;
+  $('fexit').onclick=exitFs;
+  $('fpp').onclick=togglePlay;
+  $('fnext').onclick=function(){cmd('nextVideo');showBar()};
+  $('fprev').onclick=function(){cmd('previousVideo');showBar()};
+  $('mode').onclick=function(){
+    fill=!fill; try{localStorage.setItem('fp_fill',fill?'1':'0')}catch(e){}
+    applyMode(); showBar();
+  };
+  $('shield').onclick=function(){
+    var b=$('fsbar');
+    if(b.classList.contains('hide')) showBar(); else {clearTimeout(hideT);b.classList.add('hide')}
+  };
+  applyMode();
+  if('serviceWorker' in navigator&&location.protocol==='https:'){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
   $('fav').onclick=toggleFav;
   $('tR').onclick=function(){tab='R';render()};
   $('tF').onclick=function(){tab='F';render()};
