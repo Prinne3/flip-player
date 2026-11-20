@@ -51,13 +51,20 @@ body.fs.fill .stage iframe{inset:auto;left:50%;top:50%;transform:translate(-50%,
   width:max(100vw,calc(100dvh*16/9));height:max(100dvh,calc(100vw*9/16))}
 body.fs .shield{display:block;position:fixed;inset:0;z-index:6;touch-action:none}
 
-/* Control column on the right */
-body.fs .fsbar{display:flex;flex-direction:column;justify-content:center;gap:8px;position:fixed;z-index:7;
-  top:calc(8px + env(safe-area-inset-top,0px));bottom:calc(8px + env(safe-area-inset-bottom,0px));
-  right:calc(8px + env(safe-area-inset-right,0px));width:58px;transition:opacity .25s}
-.fsbar button{width:58px;min-height:54px;padding:0;background:rgba(23,23,31,.82);font-size:20px}
+/* Control pad on the right: 2 columns, kept in the upper part of the screen
+   so the cover camera and the system button at the bottom never cover it.
+   Raise --cam-gap to move it up, lower it to move it down. */
+:root{--cam-gap:22vh}
+body.fs .fsbar{display:grid;grid-template-columns:56px 56px;gap:8px;align-content:center;position:fixed;z-index:7;
+  top:calc(8px + env(safe-area-inset-top,0px));bottom:var(--cam-gap);
+  right:calc(8px + env(safe-area-inset-right,0px));transition:opacity .25s;user-select:none;-webkit-user-select:none}
+.fsbar button{width:56px;min-width:0;min-height:56px;padding:0;background:rgba(23,23,31,.82);font-size:20px;
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .fsbar .sm{min-height:40px;font-size:13px;font-weight:600;color:var(--mut)}
-.fsbar .gap{height:4px}
+.fsbar .tg{color:var(--mut);font-size:24px;font-weight:700}
+.fsbar .tg.on{color:var(--acc);background:rgba(255,59,92,.18)}
+.fsbar .tg.na{opacity:.35}
+.fsbar .seeking{background:rgba(255,59,92,.35)}
 .fsbar.hide{opacity:0;pointer-events:none}
 body.fs .fsbar,body.fs .fsbar button{touch-action:none}
 
@@ -95,18 +102,20 @@ body.fs .dhead button{min-height:36px;min-width:36px;font-size:16px;padding:0}
 <div class="fsbar" id="fsbar">
   <button id="fexit" class="sm" aria-label="Exit full screen">✕</button>
   <button id="mode" class="sm" aria-label="Switch Fit or Fill">Fit</button>
-  <div class="gap"></div>
-  <button id="fprev" aria-label="Previous">⏮</button>
+  <button id="shuf" class="tg" aria-label="Shuffle">⇄</button>
+  <button id="rep" class="tg" aria-label="Repeat">↻</button>
+  <button id="fprev" aria-label="Previous, hold to rewind">⏮</button>
+  <button id="fnext" aria-label="Next, hold to fast forward">⏭</button>
   <button id="fpp" aria-label="Play or pause">⏯</button>
-  <button id="fnext" aria-label="Next">⏭</button>
   <button id="ffav" aria-label="Favorite">♥</button>
 </div>
 
 <script>
 (function(){
-  var APP_VERSION=5;
+  var APP_VERSION=6;
   var KEY_R='fp_recent', KEY_F='fp_fav';
-  var tab='R', current=null, playing=true, fill=true, realFs=false, hideT=null, editing=-1;
+  var tab='R', current=null, playing=true, curTime=0, applied=false,
+      shuffle=localStorage.getItem('fp_shuf')==='1', repeat=localStorage.getItem('fp_rep')==='1', fill=true, realFs=false, hideT=null, editing=-1;
   var $=function(id){return document.getElementById(id)};
   var body=document.body;
 
@@ -137,16 +146,16 @@ body.fs .dhead button{min-height:36px;min-width:36px;font-size:16px;padding:0}
     if(p.l&&!p.v) return 'https://www.youtube.com/embed/videoseries'+q+'&list='+encodeURIComponent(p.l);
     return 'https://www.youtube.com/embed/'+p.v+q+(p.l?'&list='+encodeURIComponent(p.l):'');
   }
-  function cmd(f){
+  function cmd(f,args){
     var fr=$('stage').querySelector('iframe');
     if(!fr||!fr.contentWindow) return;
-    fr.contentWindow.postMessage(JSON.stringify({event:'command',func:f,args:''}),'*');
+    fr.contentWindow.postMessage(JSON.stringify({event:'command',func:f,args:args||''}),'*');
   }
   function label(p){return p.l&&!p.v?'Playlist '+p.l.slice(0,14)+'…':(p.l?'Video '+p.v+' + playlist':'Video '+p.v)}
 
   // 1) Playing always opens full screen in Fill
   function play(p){
-    current={v:p.v||null,l:p.l||null}; playing=true;
+    current={v:p.v||null,l:p.l||null}; playing=true; curTime=0; applied=false;
     var st=$('stage');
     st.innerHTML='';
     var f=document.createElement('iframe');
@@ -164,7 +173,7 @@ body.fs .dhead button{min-height:36px;min-width:36px;font-size:16px;padding:0}
     st.appendChild(note);
     addRecent(current, p.t);
     fill=true; closeDrawer(); enterFs();
-    render();
+    render(); renderToggles();
   }
   function addRecent(p,t){
     var r=load(KEY_R), old=null;
@@ -330,8 +339,59 @@ body.fs .dhead button{min-height:36px;min-width:36px;font-size:16px;padding:0}
       if(typeof d.info.playerState==='number') s=d.info.playerState;
       if(d.info.videoData&&d.info.videoData.title) gotTitle(d.info.videoData.title);
     }
-    if(s!==null) playing=(s===1||s===3);
+    if(d.info&&typeof d.info.currentTime==='number'&&!seekT) curTime=d.info.currentTime;
+    if(!applied){applied=true;applyPlaylistModes()}
+    if(s!==null){
+      playing=(s===1||s===3);
+      if(s===0&&repeat&&current&&!current.l){cmd('seekTo',[0,true]);cmd('playVideo')}
+    }
   });
+
+  // Shuffle / repeat
+  function applyPlaylistModes(){
+    if(!current||!current.l) return;
+    cmd('setShuffle',[shuffle]); cmd('setLoop',[repeat]);
+  }
+  function renderToggles(){
+    var pl=!!(current&&current.l);
+    $('shuf').classList.toggle('on',shuffle); $('shuf').classList.toggle('na',!pl);
+    $('rep').classList.toggle('on',repeat);
+  }
+  $('shuf').onclick=function(){
+    shuffle=!shuffle; try{localStorage.setItem('fp_shuf',shuffle?'1':'0')}catch(e){}
+    applyPlaylistModes(); renderToggles(); showBar();
+  };
+  $('rep').onclick=function(){
+    repeat=!repeat; try{localStorage.setItem('fp_rep',repeat?'1':'0')}catch(e){}
+    applyPlaylistModes(); renderToggles(); showBar();
+  };
+
+  // Previous / next: tap = skip, hold = rewind / fast forward
+  var seekT=null;
+  function holdButton(btn,dir,tapFn){
+    var holdT=null, held=false;
+    function stop(){
+      clearTimeout(holdT); holdT=null;
+      if(seekT){clearInterval(seekT);seekT=null}
+      btn.classList.remove('seeking');
+    }
+    btn.addEventListener('pointerdown',function(e){
+      e.preventDefault(); held=false; showBar(); clearTimeout(hideT);
+      holdT=setTimeout(function(){
+        held=true; btn.classList.add('seeking');
+        var step=function(){curTime=Math.max(0,curTime+dir*5);cmd('seekTo',[curTime,true])};
+        step(); seekT=setInterval(step,300);
+      },400);
+    });
+    btn.addEventListener('pointerup',function(){
+      var wasHeld=held; stop(); if(!wasHeld) tapFn(); showBar();
+    });
+    btn.addEventListener('pointerleave',stop);
+    btn.addEventListener('pointercancel',stop);
+    btn.addEventListener('contextmenu',function(e){e.preventDefault()});
+  }
+  holdButton($('fprev'),-1,function(){cmd('previousVideo')});
+  holdButton($('fnext'),1,function(){cmd('nextVideo')});
 
   function togglePlay(){playing=!playing;cmd(playing?'playVideo':'pauseVideo');showBar()}
   $('go').onclick=submit;
@@ -343,14 +403,12 @@ body.fs .dhead button{min-height:36px;min-width:36px;font-size:16px;padding:0}
   $('fs').onclick=function(){fill=true;enterFs()};
   $('fexit').onclick=exitFs;
   $('fpp').onclick=togglePlay;
-  $('fnext').onclick=function(){cmd('nextVideo');showBar()};
-  $('fprev').onclick=function(){cmd('previousVideo');showBar()};
   $('ffav').onclick=function(){toggleFav();showBar()};
   $('mode').onclick=function(){fill=!fill;applyMode();showBar()};
   $('tR').onclick=function(){tab='R';editing=-1;render()};
   $('tF').onclick=function(){tab='F';editing=-1;render()};
   applyMode();
-  render();
+  render(); renderToggles();
   $('ver').textContent=APP_VERSION;
 
   // Auto-update: whenever the app comes on screen (cover or main), check for a newer version and reload
