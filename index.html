@@ -48,6 +48,12 @@ body.fs .fsbar{display:flex;gap:6px;position:fixed;left:8px;right:8px;bottom:cal
 .fsbar button{flex:1;background:rgba(23,23,31,.85);font-size:18px}
 .fsbar .md{font-size:14px;font-weight:600}
 .fsbar.hide{opacity:0;pointer-events:none}
+/* Flip 7 cover screen (near-square): lift the bar above the cameras in Fill.
+   Adjust --cam-gap if it sits too high or too low. */
+:root{--cam-gap:24vh}
+@media (min-aspect-ratio:4/5) and (max-aspect-ratio:5/4){
+  body.fs.fill .fsbar{bottom:var(--cam-gap)}
+}
 </style>
 </head>
 <body>
