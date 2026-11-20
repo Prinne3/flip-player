@@ -12,82 +12,102 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
-:root{--bg:#0b0b0f;--card:#17171f;--fg:#f2f2f7;--mut:#8e8e9a;--acc:#ff3b5c;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+:root{--bg:#0b0b0f;--card:#17171f;--fg:#f2f2f7;--mut:#8e8e9a;--acc:#ff3b5c;color-scheme:dark}
 *{box-sizing:border-box;margin:0}
 html,body{height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-body{display:flex;flex-direction:column;gap:8px;padding:8px;max-width:100%;overflow:hidden}
-.row{display:flex;gap:6px}
+body{display:flex;flex-direction:column;gap:8px;padding:8px;padding-top:calc(8px + env(safe-area-inset-top,0px));padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));overflow:hidden}
 input{flex:1;min-width:0;background:var(--card);border:1px solid #2a2a35;color:var(--fg);border-radius:12px;padding:12px;font-size:15px}
-button{background:var(--card);color:var(--fg);border:0;border-radius:12px;font-size:20px;min-height:48px;min-width:48px;padding:0 14px}
+button{background:var(--card);color:var(--fg);border:0;border-radius:12px;font-size:20px;min-height:48px;min-width:48px;padding:0 14px;-webkit-tap-highlight-color:transparent}
 button:active{background:#262633}
 .go{background:var(--acc);font-weight:600;font-size:16px}
-.stage{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:14px;overflow:hidden;flex:none}
+.on{color:var(--acc)}
+
+/* Main screen layout (panel children join the page flow) */
+#panel{display:contents}
+.row{display:flex;gap:6px;order:0}
+.stage{order:1;position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:14px;overflow:hidden;flex:none}
+.ctrl{order:2;display:flex;gap:6px}
+.tabs{order:3;display:flex;gap:6px}
+.list{order:4;flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+.dhead{display:none}
 .stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--mut);padding:16px;font-size:14px}
-.ctrl{display:flex;gap:6px}
 .ctrl button{flex:1}
-.fav.on{color:var(--acc)}
-.tabs{display:flex;gap:6px}
 .tabs button{flex:1;min-height:38px;font-size:14px;color:var(--mut)}
 .tabs button.sel{color:var(--fg);background:#262633}
-.list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
 .item{display:flex;align-items:center;gap:6px}
 .item .t{flex:1;min-width:0;text-align:left;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 12px}
-.item .x{min-width:44px;color:var(--mut);font-size:16px}
+.item .x,.item .e{min-width:44px;padding:0;color:var(--mut);font-size:16px}
+.item input{font-size:14px;padding:10px 12px}
 .empty{color:var(--mut);font-size:14px;padding:8px}
-/* Full-screen player mode */
+
+/* Full-screen player */
 .shield,.fsbar{display:none}
 body.fs{padding:0}
-body.fs>.row,body.fs>.ctrl,body.fs>.tabs,body.fs>.list{display:none}
+body.fs>.ctrl{display:none}
 body.fs .stage{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;aspect-ratio:auto;border-radius:0;z-index:5}
 body.fs.fill .stage iframe{inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);
   width:max(100vw,177.78vh);height:max(100vh,56.25vw);
   width:max(100vw,calc(100dvh*16/9));height:max(100dvh,calc(100vw*9/16))}
-body.fs.fill .shield{display:block;position:fixed;inset:0;z-index:6}
-body.fs .fsbar{display:flex;gap:6px;position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));z-index:7;transition:opacity .25s}
-.fsbar button{flex:1;background:rgba(23,23,31,.85);font-size:18px}
-.fsbar .md{font-size:14px;font-weight:600}
+body.fs .shield{display:block;position:fixed;inset:0;z-index:6;touch-action:none}
+
+/* Control column on the right */
+body.fs .fsbar{display:flex;flex-direction:column;justify-content:center;gap:8px;position:fixed;z-index:7;
+  top:calc(8px + env(safe-area-inset-top,0px));bottom:calc(8px + env(safe-area-inset-bottom,0px));
+  right:calc(8px + env(safe-area-inset-right,0px));width:58px;transition:opacity .25s}
+.fsbar button{width:58px;min-height:54px;padding:0;background:rgba(23,23,31,.82);font-size:20px}
+.fsbar .sm{min-height:40px;font-size:13px;font-weight:600;color:var(--mut)}
+.fsbar .gap{height:4px}
 .fsbar.hide{opacity:0;pointer-events:none}
-/* Flip 7 cover screen (near-square): lift the bar above the cameras in Fill.
-   Adjust --cam-gap if it sits too high or too low. */
-:root{--cam-gap:24vh}
-@media (min-aspect-ratio:3/4) and (max-aspect-ratio:4/3){
-  body.fs.fill .fsbar{bottom:var(--cam-gap)}
-}
+body.fs .fsbar,body.fs .fsbar button{touch-action:none}
+
+/* Swipe-in drawer with link box, Recent and Favorites */
+body.fs #panel{display:flex;flex-direction:column;gap:8px;position:fixed;top:0;right:0;bottom:0;width:88vw;max-width:420px;z-index:10;
+  background:var(--bg);padding:10px;padding-top:calc(10px + env(safe-area-inset-top,0px));padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));
+  box-shadow:-8px 0 24px rgba(0,0,0,.6);transform:translateX(105%);transition:transform .25s ease}
+body.fs.drawer #panel{transform:none}
+body.fs .dhead{display:flex;align-items:center;justify-content:space-between;color:var(--mut);font-size:13px;padding:0 4px}
+body.fs .dhead button{min-height:36px;min-width:36px;font-size:16px;padding:0}
 </style>
 </head>
 <body>
-<div class="row">
-  <input id="url" type="url" inputmode="url" placeholder="Paste YouTube link or playlist" autocomplete="off">
-  <button class="go" id="go">Play</button>
-</div>
 <div class="stage" id="stage"><div class="msg">Paste a YouTube or YouTube Music link to start.</div></div>
 <div class="ctrl">
   <button id="prev" aria-label="Previous">⏮</button>
   <button id="pp" aria-label="Play or pause">⏯</button>
   <button id="next" aria-label="Next">⏭</button>
-  <button id="fav" class="fav" aria-label="Favorite">♥</button>
+  <button id="fav" aria-label="Favorite">♥</button>
   <button id="fs" aria-label="Full screen">⛶</button>
+</div>
+<div id="panel">
+  <div class="dhead"><span>Swipe right to close</span><button id="dclose" aria-label="Close list">›</button></div>
+  <div class="row">
+    <input id="url" type="url" inputmode="url" placeholder="Paste YouTube link or playlist" autocomplete="off">
+    <button class="go" id="go">Play</button>
+  </div>
+  <div class="tabs">
+    <button id="tR" class="sel">Recent</button>
+    <button id="tF">Favorites</button>
+  </div>
+  <div class="list" id="list"></div>
 </div>
 <div class="shield" id="shield"></div>
 <div class="fsbar" id="fsbar">
+  <button id="fexit" class="sm" aria-label="Exit full screen">✕</button>
+  <button id="mode" class="sm" aria-label="Switch Fit or Fill">Fit</button>
+  <div class="gap"></div>
   <button id="fprev" aria-label="Previous">⏮</button>
   <button id="fpp" aria-label="Play or pause">⏯</button>
   <button id="fnext" aria-label="Next">⏭</button>
-  <button id="mode" class="md" aria-label="Fit or fill">Fill</button>
-  <button id="fexit" aria-label="Exit full screen">✕</button>
+  <button id="ffav" aria-label="Favorite">♥</button>
 </div>
-<div class="tabs">
-  <button id="tR" class="sel">Recent</button>
-  <button id="tF">Favorites</button>
-</div>
-<div class="list" id="list"></div>
 
 <script>
 (function(){
   var KEY_R='fp_recent', KEY_F='fp_fav';
-  var tab='R', current=null, playing=true;
+  var tab='R', current=null, playing=true, fill=true, realFs=false, hideT=null, editing=-1;
   var $=function(id){return document.getElementById(id)};
+  var body=document.body;
 
   function load(k){try{var v=localStorage.getItem(k);return v?JSON.parse(v):[]}catch(e){return []}}
   function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
@@ -121,12 +141,15 @@ body.fs .fsbar{display:flex;gap:6px;position:fixed;left:8px;right:8px;bottom:cal
     if(!fr||!fr.contentWindow) return;
     fr.contentWindow.postMessage(JSON.stringify({event:'command',func:f,args:''}),'*');
   }
+  function label(p){return p.l&&!p.v?'Playlist '+p.l.slice(0,14)+'…':(p.l?'Video '+p.v+' + playlist':'Video '+p.v)}
+
+  // 1) Playing always opens full screen in Fill
   function play(p){
-    current=p; playing=true;
+    current={v:p.v||null,l:p.l||null}; playing=true;
     var st=$('stage');
     st.innerHTML='';
     var f=document.createElement('iframe');
-    f.src=src(p);
+    f.src=src(current);
     f.allow='autoplay; encrypted-media; picture-in-picture';
     f.title='YouTube player';
     f.referrerPolicy='strict-origin-when-cross-origin';
@@ -138,29 +161,54 @@ body.fs .fsbar{display:flex;gap:6px;position:fixed;left:8px;right:8px;bottom:cal
     note.className='msg'; note.style.zIndex='-1';
     note.textContent='Video unavailable? The owner may have blocked embedding, or the playlist is private.';
     st.appendChild(note);
-    addRecent(p);
+    addRecent(current, p.t);
+    fill=true; closeDrawer(); enterFs();
     render();
   }
-  function addRecent(p){
-    var r=load(KEY_R).filter(function(x){return key(x)!==key(p)});
-    r.unshift({v:p.v||null,l:p.l||null,t:label(p)});
+  function addRecent(p,t){
+    var r=load(KEY_R), old=null;
+    r=r.filter(function(x){if(key(x)===key(p)){old=x;return false}return true});
+    r.unshift(old||{v:p.v,l:p.l,t:t||label(p)});
     save(KEY_R,r.slice(0,20));
   }
-  function label(p){return p.l&&!p.v?'Playlist '+p.l.slice(0,14)+'…':(p.l?'Video '+p.v+' + playlist':'Video '+p.v)}
+
+  // Fill in the real video title once the player reports it (unless renamed)
+  function gotTitle(title){
+    if(!current||!title) return;
+    var t=current.l?title+' · playlist':title;
+    [KEY_R,KEY_F].forEach(function(k){
+      var a=load(k), ch=false;
+      a.forEach(function(x){if(key(x)===key(current)&&!x.c&&!x.auto){x.t=t;x.auto=1;ch=true}});
+      if(ch) save(k,a);
+    });
+    if(editing<0) render();
+  }
+
   function isFav(p){return !!p&&load(KEY_F).some(function(x){return key(x)===key(p)})}
   function toggleFav(){
     if(!current) return;
     var f=load(KEY_F);
     if(isFav(current)) f=f.filter(function(x){return key(x)!==key(current)});
-    else f.unshift({v:current.v||null,l:current.l||null,t:label(current)});
+    else{
+      var r=load(KEY_R).filter(function(x){return key(x)===key(current)})[0];
+      f.unshift({v:current.v,l:current.l,t:r?r.t:label(current),auto:r&&r.auto?1:0});
+    }
     save(KEY_F,f);
     render();
   }
-  function remove(k,i){
-    var a=load(k); a.splice(i,1); save(k,a); render();
+  function remove(k,i){var a=load(k); a.splice(i,1); save(k,a); render()}
+
+  // 4) Rename a favorite
+  function rename(i,name){
+    var a=load(KEY_F); if(!a[i]) return;
+    name=(name||'').trim();
+    if(name){a[i].t=name;a[i].c=1}
+    save(KEY_F,a);
   }
+
   function render(){
-    $('fav').classList.toggle('on',isFav(current));
+    var fv=isFav(current);
+    $('fav').classList.toggle('on',fv); $('ffav').classList.toggle('on',fv);
     $('tR').classList.toggle('sel',tab==='R');
     $('tF').classList.toggle('sel',tab==='F');
     var k=tab==='R'?KEY_R:KEY_F, a=load(k), L=$('list');
@@ -172,89 +220,139 @@ body.fs .fsbar{display:flex;gap:6px;position:fixed;left:8px;right:8px;bottom:cal
     }
     a.forEach(function(it,i){
       var d=document.createElement('div'); d.className='item';
+      if(tab==='F'&&editing===i){
+        var inp=document.createElement('input'); inp.value=it.t; inp.setAttribute('aria-label','New name');
+        var ok=document.createElement('button'); ok.className='e'; ok.textContent='✓'; ok.setAttribute('aria-label','Save name');
+        var done=function(){rename(i,inp.value);editing=-1;render()};
+        ok.onclick=done;
+        inp.addEventListener('keydown',function(ev){if(ev.key==='Enter')done();if(ev.key==='Escape'){editing=-1;render()}});
+        d.appendChild(inp); d.appendChild(ok); L.appendChild(d);
+        setTimeout(function(){inp.focus();inp.select()},0);
+        return;
+      }
       var b=document.createElement('button'); b.className='t'; b.textContent=it.t;
       b.onclick=function(){play(it)};
+      d.appendChild(b);
+      if(tab==='F'){
+        var ed=document.createElement('button'); ed.className='e'; ed.textContent='✎';
+        ed.setAttribute('aria-label','Rename');
+        ed.onclick=function(){editing=i;render()};
+        d.appendChild(ed);
+      }
       var x=document.createElement('button'); x.className='x'; x.textContent='✕';
       x.setAttribute('aria-label','Remove');
       x.onclick=function(){remove(k,i)};
-      d.appendChild(b); d.appendChild(x); L.appendChild(d);
+      d.appendChild(x); L.appendChild(d);
     });
   }
   function submit(){
     var p=parse($('url').value);
     if(!p){
-      $('stage').innerHTML='<div class="msg">That doesn’t look like a YouTube link. Try again.</div>';
+      $('url').value=''; $('url').placeholder='Not a YouTube link. Try again.';
       return;
     }
-    $('url').value='';
+    $('url').value=''; $('url').placeholder='Paste YouTube link or playlist';
     play(p);
   }
-  $('go').onclick=submit;
-  $('url').addEventListener('keydown',function(e){if(e.key==='Enter')submit()});
-  function togglePlay(){playing=!playing;cmd(playing?'playVideo':'pauseVideo');showBar()}
-  $('pp').onclick=togglePlay;
-  $('next').onclick=function(){cmd('nextVideo')};
-  $('prev').onclick=function(){cmd('previousVideo')};
 
-  // Keep play/pause in sync with the real player state
-  window.addEventListener('message',function(e){
-    if(!/youtube(-nocookie)?\.com$/.test((e.origin||'').replace(/:\d+$/,''))) return;
-    var d; try{d=typeof e.data==='string'?JSON.parse(e.data):e.data}catch(x){return}
-    if(!d) return;
-    var s=null;
-    if(d.event==='onStateChange') s=d.info;
-    else if(d.event==='infoDelivery'&&d.info&&typeof d.info.playerState==='number') s=d.info.playerState;
-    if(s===null) return;
-    var was=playing; playing=(s===1||s===3);
-    if(was!==playing) showBar();
-  });
-
-  // Full-screen mode with Fit / Fill
-  var fill=localStorage.getItem('fp_fill')!=='0', realFs=false, hideT=null;
+  // Full screen + Fit/Fill
   function applyMode(){
-    document.body.classList.toggle('fill',fill);
-    $('mode').textContent=fill?'Fill':'Fit';
+    body.classList.toggle('fill',fill);
+    $('mode').textContent=fill?'Fit':'Fill';   // shows what tapping switches to
   }
   function showBar(){
     var b=$('fsbar'); b.classList.remove('hide'); clearTimeout(hideT);
-    if(fill&&document.body.classList.contains('fs')) hideT=setTimeout(function(){b.classList.add('hide')},3000);
+    if(body.classList.contains('fs')&&!body.classList.contains('drawer'))
+      hideT=setTimeout(function(){b.classList.add('hide')},3000);
   }
+  function hideBar(){clearTimeout(hideT);$('fsbar').classList.add('hide')}
   function enterFs(){
-    document.body.classList.add('fs'); applyMode(); showBar();
+    body.classList.add('fs'); applyMode(); showBar();
     var el=document.documentElement;
     if(el.requestFullscreen&&!document.fullscreenElement){
       try{var r=el.requestFullscreen({navigationUI:'hide'});if(r&&r.catch)r.catch(function(){})}catch(e){}
     }
   }
   function exitFs(){
-    document.body.classList.remove('fs'); clearTimeout(hideT);
+    body.classList.remove('fs','drawer'); clearTimeout(hideT);
     if(document.fullscreenElement&&document.exitFullscreen){try{document.exitFullscreen()}catch(e){}}
   }
   document.addEventListener('fullscreenchange',function(){
     if(document.fullscreenElement===document.documentElement) realFs=true;
     else if(!document.fullscreenElement&&realFs){realFs=false;exitFs()}
   });
-  $('fs').onclick=enterFs;
+
+  // 3) Drawer
+  function openDrawer(){body.classList.add('drawer');hideBar();editing=-1;render()}
+  function closeDrawer(){
+    if(!body.classList.contains('drawer')) return;
+    body.classList.remove('drawer'); editing=-1;
+    if(document.activeElement) document.activeElement.blur();
+    showBar();
+  }
+
+  // Tap the video = show/hide bar. Swipe left anywhere (even on the bar) = open lists.
+  var sx=0, sy=0, down=false, onShield=false;
+  document.addEventListener('pointerdown',function(e){
+    if(!body.classList.contains('fs')) return;
+    down=true; sx=e.clientX; sy=e.clientY; onShield=(e.target===$('shield'));
+  });
+  document.addEventListener('pointerup',function(e){
+    if(!down) return; down=false;
+    var dx=e.clientX-sx, dy=e.clientY-sy, drawer=body.classList.contains('drawer');
+    if(drawer){ if(onShield) closeDrawer(); return; }
+    if(dx<-50&&Math.abs(dx)>Math.abs(dy)){openDrawer();return}
+    if(onShield&&Math.abs(dx)<12&&Math.abs(dy)<12){
+      if($('fsbar').classList.contains('hide')) showBar(); else hideBar();
+    }
+  });
+  document.addEventListener('pointercancel',function(){down=false});
+
+  // Swipe right on the drawer to close it
+  var px=0, py=0;
+  $('panel').addEventListener('touchstart',function(e){var t=e.touches[0];px=t.clientX;py=t.clientY},{passive:true});
+  $('panel').addEventListener('touchend',function(e){
+    if(!body.classList.contains('drawer')) return;
+    var t=e.changedTouches[0], dx=t.clientX-px, dy=t.clientY-py;
+    if(dx>60&&Math.abs(dx)>Math.abs(dy)*1.5) closeDrawer();
+  },{passive:true});
+  $('dclose').onclick=closeDrawer;
+
+  // Player state + title from YouTube
+  window.addEventListener('message',function(e){
+    if(!/youtube(-nocookie)?\.com$/.test((e.origin||'').replace(/:\d+$/,''))) return;
+    var d; try{d=typeof e.data==='string'?JSON.parse(e.data):e.data}catch(x){return}
+    if(!d) return;
+    var s=null;
+    if(d.event==='onStateChange') s=d.info;
+    else if(d.event==='infoDelivery'&&d.info){
+      if(typeof d.info.playerState==='number') s=d.info.playerState;
+      if(d.info.videoData&&d.info.videoData.title) gotTitle(d.info.videoData.title);
+    }
+    if(s!==null) playing=(s===1||s===3);
+  });
+
+  function togglePlay(){playing=!playing;cmd(playing?'playVideo':'pauseVideo');showBar()}
+  $('go').onclick=submit;
+  $('url').addEventListener('keydown',function(e){if(e.key==='Enter')submit()});
+  $('pp').onclick=togglePlay;
+  $('next').onclick=function(){cmd('nextVideo')};
+  $('prev').onclick=function(){cmd('previousVideo')};
+  $('fav').onclick=toggleFav;
+  $('fs').onclick=function(){fill=true;enterFs()};
   $('fexit').onclick=exitFs;
   $('fpp').onclick=togglePlay;
   $('fnext').onclick=function(){cmd('nextVideo');showBar()};
   $('fprev').onclick=function(){cmd('previousVideo');showBar()};
-  $('mode').onclick=function(){
-    fill=!fill; try{localStorage.setItem('fp_fill',fill?'1':'0')}catch(e){}
-    applyMode(); showBar();
-  };
-  $('shield').onclick=function(){
-    var b=$('fsbar');
-    if(b.classList.contains('hide')) showBar(); else {clearTimeout(hideT);b.classList.add('hide')}
-  };
+  $('ffav').onclick=function(){toggleFav();showBar()};
+  $('mode').onclick=function(){fill=!fill;applyMode();showBar()};
+  $('tR').onclick=function(){tab='R';editing=-1;render()};
+  $('tF').onclick=function(){tab='F';editing=-1;render()};
   applyMode();
+  render();
   if('serviceWorker' in navigator&&location.protocol==='https:'){
     navigator.serviceWorker.register('sw.js').catch(function(){});
   }
-  $('fav').onclick=toggleFav;
-  $('tR').onclick=function(){tab='R';render()};
-  $('tF').onclick=function(){tab='F';render()};
-  render();
 })();
 </script>
 </body>
