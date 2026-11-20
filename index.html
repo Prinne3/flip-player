@@ -51,7 +51,7 @@ body.fs .fsbar{display:flex;gap:6px;position:fixed;left:8px;right:8px;bottom:cal
 /* Flip 7 cover screen (near-square): lift the bar above the cameras in Fill.
    Adjust --cam-gap if it sits too high or too low. */
 :root{--cam-gap:24vh}
-@media (min-aspect-ratio:4/5) and (max-aspect-ratio:5/4){
+@media (min-aspect-ratio:3/4) and (max-aspect-ratio:4/3){
   body.fs.fill .fsbar{bottom:var(--cam-gap)}
 }
 </style>
@@ -112,7 +112,7 @@ body.fs .fsbar{display:flex;gap:6px;position:fixed;left:8px;right:8px;bottom:cal
   }
   function key(p){return (p.v||'')+'|'+(p.l||'')}
   function src(p){
-    var q='?enablejsapi=1&playsinline=1&rel=0&autoplay=1&origin='+encodeURIComponent(location.origin);
+    var q='?enablejsapi=1&playsinline=1&rel=0&autoplay=1&fs=0&origin='+encodeURIComponent(location.origin);
     if(p.l&&!p.v) return 'https://www.youtube.com/embed/videoseries'+q+'&list='+encodeURIComponent(p.l);
     return 'https://www.youtube.com/embed/'+p.v+q+(p.l?'&list='+encodeURIComponent(p.l):'');
   }
@@ -127,8 +127,7 @@ body.fs .fsbar{display:flex;gap:6px;position:fixed;left:8px;right:8px;bottom:cal
     st.innerHTML='';
     var f=document.createElement('iframe');
     f.src=src(p);
-    f.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
-    f.allowFullscreen=true;
+    f.allow='autoplay; encrypted-media; picture-in-picture';
     f.title='YouTube player';
     f.referrerPolicy='strict-origin-when-cross-origin';
     f.onload=function(){
@@ -218,7 +217,7 @@ body.fs .fsbar{display:flex;gap:6px;position:fixed;left:8px;right:8px;bottom:cal
   }
   function showBar(){
     var b=$('fsbar'); b.classList.remove('hide'); clearTimeout(hideT);
-    if(fill&&playing&&document.body.classList.contains('fs')) hideT=setTimeout(function(){b.classList.add('hide')},3000);
+    if(fill&&document.body.classList.contains('fs')) hideT=setTimeout(function(){b.classList.add('hide')},3000);
   }
   function enterFs(){
     document.body.classList.add('fs'); applyMode(); showBar();
