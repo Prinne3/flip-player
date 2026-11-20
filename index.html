@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Flip Player</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="color-scheme" content="dark">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<style>
+:root{--bg:#0b0b0f;--card:#17171f;--fg:#f2f2f7;--mut:#8e8e9a;--acc:#ff3b5c;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{display:flex;flex-direction:column;gap:8px;padding:8px;max-width:100%;overflow:hidden}
+.row{display:flex;gap:6px}
+input{flex:1;min-width:0;background:var(--card);border:1px solid #2a2a35;color:var(--fg);border-radius:12px;padding:12px;font-size:15px}
+button{background:var(--card);color:var(--fg);border:0;border-radius:12px;font-size:20px;min-height:48px;min-width:48px;padding:0 14px}
+button:active{background:#262633}
+.go{background:var(--acc);font-weight:600;font-size:16px}
+.stage{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:14px;overflow:hidden;flex:none}
+.stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--mut);padding:16px;font-size:14px}
+.ctrl{display:flex;gap:6px}
+.ctrl button{flex:1}
+.fav.on{color:var(--acc)}
+.tabs{display:flex;gap:6px}
+.tabs button{flex:1;min-height:38px;font-size:14px;color:var(--mut)}
+.tabs button.sel{color:var(--fg);background:#262633}
+.list{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+.item{display:flex;align-items:center;gap:6px}
+.item .t{flex:1;min-width:0;text-align:left;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 12px}
+.item .x{min-width:44px;color:var(--mut);font-size:16px}
+.empty{color:var(--mut);font-size:14px;padding:8px}
+</style>
+</head>
+<body>
+<div class="row">
+  <input id="url" type="url" inputmode="url" placeholder="Paste YouTube link or playlist" autocomplete="off">
+  <button class="go" id="go">Play</button>
+</div>
+<div class="stage" id="stage"><div class="msg">Paste a YouTube or YouTube Music link to start.</div></div>
+<div class="ctrl">
+  <button id="prev" aria-label="Previous">⏮</button>
+  <button id="pp" aria-label="Play or pause">⏯</button>
+  <button id="next" aria-label="Next">⏭</button>
+  <button id="fav" class="fav" aria-label="Favorite">♥</button>
+</div>
+<div class="tabs">
+  <button id="tR" class="sel">Recent</button>
+  <button id="tF">Favorites</button>
+</div>
+<div class="list" id="list"></div>
+
+<script>
+(function(){
+  var KEY_R='fp_recent', KEY_F='fp_fav';
+  var tab='R', current=null, playing=true;
+  var $=function(id){return document.getElementById(id)};
+
+  function load(k){try{var v=localStorage.getItem(k);return v?JSON.parse(v):[]}catch(e){return []}}
+  function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+
+  function parse(s){
+    s=(s||'').trim();
+    if(/^[\w-]{11}$/.test(s)) return {v:s};
+    var u;
+    try{u=new URL(s)}catch(e){return null}
+    var h=u.hostname.replace(/^www\.|^m\.|^music\./,'');
+    var list=u.searchParams.get('list');
+    var v=null;
+    if(h==='youtu.be') v=u.pathname.slice(1).split('/')[0];
+    else if(h==='youtube.com'){
+      v=u.searchParams.get('v');
+      var m=u.pathname.match(/^\/(embed|shorts|live)\/([\w-]{11})/);
+      if(!v&&m) v=m[2];
+    } else return null;
+    if(v&&!/^[\w-]{11}$/.test(v)) v=null;
+    if(!v&&!list) return null;
+    return {v:v,l:list};
+  }
+  function key(p){return (p.v||'')+'|'+(p.l||'')}
+  function src(p){
+    var q='?enablejsapi=1&playsinline=1&rel=0&autoplay=1';
+    if(p.l&&!p.v) return 'https://www.youtube.com/embed/videoseries'+q+'&list='+encodeURIComponent(p.l);
+    return 'https://www.youtube.com/embed/'+p.v+q+(p.l?'&list='+encodeURIComponent(p.l):'');
+  }
+  function cmd(f){
+    var fr=$('stage').querySelector('iframe');
+    if(!fr||!fr.contentWindow) return;
+    fr.contentWindow.postMessage(JSON.stringify({event:'command',func:f,args:''}),'*');
+  }
+  function play(p){
+    current=p; playing=true;
+    var st=$('stage');
+    st.innerHTML='';
+    var f=document.createElement('iframe');
+    f.src=src(p);
+    f.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
+    f.allowFullscreen=true;
+    f.title='YouTube player';
+    f.referrerPolicy='strict-origin-when-cross-origin';
+    st.appendChild(f);
+    var note=document.createElement('div');
+    note.className='msg'; note.style.zIndex='-1';
+    note.textContent='Video unavailable? The owner may have blocked embedding, or the playlist is private.';
+    st.appendChild(note);
+    addRecent(p);
+    render();
+  }
+  function addRecent(p){
+    var r=load(KEY_R).filter(function(x){return key(x)!==key(p)});
+    r.unshift({v:p.v||null,l:p.l||null,t:label(p)});
+    save(KEY_R,r.slice(0,20));
+  }
+  function label(p){return p.l&&!p.v?'Playlist '+p.l.slice(0,14)+'…':(p.l?'Video '+p.v+' + playlist':'Video '+p.v)}
+  function isFav(p){return !!p&&load(KEY_F).some(function(x){return key(x)===key(p)})}
+  function toggleFav(){
+    if(!current) return;
+    var f=load(KEY_F);
+    if(isFav(current)) f=f.filter(function(x){return key(x)!==key(current)});
+    else f.unshift({v:current.v||null,l:current.l||null,t:label(current)});
+    save(KEY_F,f);
+    render();
+  }
+  function remove(k,i){
+    var a=load(k); a.splice(i,1); save(k,a); render();
+  }
+  function render(){
+    $('fav').classList.toggle('on',isFav(current));
+    $('tR').classList.toggle('sel',tab==='R');
+    $('tF').classList.toggle('sel',tab==='F');
+    var k=tab==='R'?KEY_R:KEY_F, a=load(k), L=$('list');
+    L.innerHTML='';
+    if(!a.length){
+      var e=document.createElement('div'); e.className='empty';
+      e.textContent=tab==='R'?'Nothing played yet.':'No favorites yet. Tap ♥ while playing.';
+      L.appendChild(e); return;
+    }
+    a.forEach(function(it,i){
+      var d=document.createElement('div'); d.className='item';
+      var b=document.createElement('button'); b.className='t'; b.textContent=it.t;
+      b.onclick=function(){play(it)};
+      var x=document.createElement('button'); x.className='x'; x.textContent='✕';
+      x.setAttribute('aria-label','Remove');
+      x.onclick=function(){remove(k,i)};
+      d.appendChild(b); d.appendChild(x); L.appendChild(d);
+    });
+  }
+  function submit(){
+    var p=parse($('url').value);
+    if(!p){
+      $('stage').innerHTML='<div class="msg">That doesn’t look like a YouTube link. Try again.</div>';
+      return;
+    }
+    $('url').value='';
+    play(p);
+  }
+  $('go').onclick=submit;
+  $('url').addEventListener('keydown',function(e){if(e.key==='Enter')submit()});
+  $('pp').onclick=function(){playing=!playing;cmd(playing?'playVideo':'pauseVideo')};
+  $('next').onclick=function(){cmd('nextVideo')};
+  $('prev').onclick=function(){cmd('previousVideo')};
+  $('fav').onclick=toggleFav;
+  $('tR').onclick=function(){tab='R';render()};
+  $('tF').onclick=function(){tab='F';render()};
+  render();
+})();
+</script>
+</body>
+</html>
